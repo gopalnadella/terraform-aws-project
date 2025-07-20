@@ -15,8 +15,8 @@ on:
 env:
   TF_VERSION: 1.8.0
   AWS_REGION: us-east-1
-  BUCKET_NAME: gk-tf-state-bucket
-  LOCK_TABLE_NAME: gk-tf-lock-table
+  BUCKET_NAME: gk-state-file-cicd-bucket
+  LOCK_TABLE_NAME: gk-terraform-locks-ddb
 
 jobs:
   bootstrap-backend:
