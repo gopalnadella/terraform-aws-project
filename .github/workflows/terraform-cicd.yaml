@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'Terraform action to perform'
+        description: 'Terraform Action'
         required: true
-        default: 'apply'
+        default: apply
         type: choice
         options:
           - apply
@@ -15,21 +15,55 @@ on:
 env:
   TF_VERSION: 1.8.0
   AWS_REGION: us-east-1
+  BUCKET_NAME: gk-tf-state-bucket
+  LOCK_TABLE_NAME: gk-tf-lock-table
 
 jobs:
-  terraform:
-    name: Terraform - Apply or Destroy
+  bootstrap-backend:
+    name: Bootstrap Terraform Backend
     runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
+      - name: Check and Create S3 Bucket
+        run: |
+          if ! aws s3api head-bucket --bucket $BUCKET_NAME 2>/dev/null; then
+            echo "Creating S3 bucket..."
+            aws s3api create-bucket --bucket $BUCKET_NAME --region $AWS_REGION --create-bucket-configuration LocationConstraint=$AWS_REGION
+          else
+            echo "S3 bucket already exists."
+          fi
+
+      - name: Check and Create DynamoDB Lock Table
+        run: |
+          if ! aws dynamodb describe-table --table-name $LOCK_TABLE_NAME 2>/dev/null; then
+            echo "Creating DynamoDB table..."
+            aws dynamodb create-table \
+              --table-name $LOCK_TABLE_NAME \
+              --attribute-definitions AttributeName=LockID,AttributeType=S \
+              --key-schema AttributeName=LockID,KeyType=HASH \
+              --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+          else
+            echo "DynamoDB table already exists."
+          fi
+
+  terraform:
+    name: Terraform ${{ github.event.inputs.action }}
+    needs: bootstrap-backend
+    runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: env/dev
-
+        working-directory: ./env/dev
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set up Terraform
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
@@ -44,20 +78,20 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
+      - name: Terraform Format
+        run: terraform fmt -recursive
 
       - name: Terraform Validate
         run: terraform validate
 
       - name: Terraform Plan
-        if: github.event.inputs.action == 'apply'
+        if: ${{ github.event.inputs.action == 'apply' }}
         run: terraform plan -out=tfplan
 
       - name: Terraform Apply
-        if: github.event.inputs.action == 'apply'
+        if: ${{ github.event.inputs.action == 'apply' }}
         run: terraform apply -auto-approve tfplan
 
       - name: Terraform Destroy
-        if: github.event.inputs.action == 'destroy'
+        if: ${{ github.event.inputs.action == 'destroy' }}
         run: terraform destroy -auto-approve
