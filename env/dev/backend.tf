@@ -2,10 +2,10 @@
 
 terraform {
   backend "s3" {
-    bucket         = "gk-tf-state-bucket"  # Match what was created in backend-setup
+    bucket         = "gk-state-file-cicd-bucket"  # Match what was created in backend-setup
     key            = "dev/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "terraform-locks"
+    dynamodb_table = "gk-terraform-locks-ddb"
     encrypt        = true
   }
 }
