@@ -11,6 +11,15 @@ on:
         options:
           - apply
           - destroy
+      environment:
+        description: 'Environment (dev, stage, prod)'
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - stage
+          - prod
 
 env:
   TF_VERSION: 1.8.0
@@ -53,12 +62,12 @@ jobs:
           fi
 
   terraform:
-    name: Terraform ${{ github.event.inputs.action }}
+    name: Terraform ${{ github.event.inputs.action }} - ${{ github.event.inputs.environment }}
     needs: bootstrap-backend
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./env/dev
+        working-directory: ./env/${{ github.event.inputs.environment }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
